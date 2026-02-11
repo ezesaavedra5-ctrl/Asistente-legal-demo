@@ -21,9 +21,10 @@ if prompt := st.chat_input("¿En qué podemos ayudarle?"):
 
     with st.chat_message("assistant"):
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="model="llama-3.3-70b-versatile",
             messages=st.session_state.messages
         )
         full_response = response.choices[0].message.content
         st.markdown(full_response)
+
     st.session_state.messages.append({"role": "assistant", "content": full_response})
