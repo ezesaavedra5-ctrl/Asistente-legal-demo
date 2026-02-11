@@ -7,7 +7,7 @@ st.title("Asistente Legal Inteligente")
 client = Groq(api_key="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")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "system", "content": "Eres un asistente de un estudio jurídico. Tu meta es filtrar el caso y agendar una cita. No des consejos legales."}]
+    st.session_state.messages = [{"role": "system", "content": "Eres un asistente de un estudio jurídico. Tu meta es filtrar el caso y agendar una cita. No des consejos legales.Eres un asistente legal de alto nivel. Tu lenguaje debe ser formal, técnico y gramaticalmente impecable. Presta especial atención a las reglas del español (por ejemplo, usa 'e' en lugar de 'y' antes de palabras que comienzan con 'i')."}]
 
 for message in st.session_state.messages:
     if message["role"] != "system":
@@ -28,4 +28,5 @@ if prompt := st.chat_input("¿En qué podemos ayudarle?"):
         st.markdown(full_response)
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
 
