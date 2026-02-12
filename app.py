@@ -7,7 +7,7 @@ st.title("Asistente Legal Inteligente")
 client = Groq(api_key="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")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "system", "content": "Eres el Asistente Virtual de Élite del Estudio Jurídico Saavedra. 
+    st.session_state.messages = [{"role": "system", "content": """Eres el Asistente Virtual de Élite del Estudio Jurídico Saavedra. 
 UBICACIÓN: San Martín 1234, Santa Fe. 
 HORARIOS: Lunes a Viernes de 16:00 a 20:00 hs. 
 
@@ -16,7 +16,7 @@ REGLAS DE ORO:
 2. GESTIÓN DE CITAS: Solo ofrece turnos de Lunes a Viernes entre las 16 y las 20 hs. Si el cliente pide otro horario, explica amablemente el horario del estudio.
 3. DATOS OBLIGATORIOS: Para confirmar, debes obtener: Nombre, Teléfono y motivo de consulta.
 4. IDIOMA: Español rioplatense formal (usted). Gramática perfecta (uso de 'e' e 'i' correctamente).
-5. RESPUESTA ANTE EL CONFLICTO: Si el cliente se muestra agresivo, mantén la calma y ofrece agendar la cita para que el profesional lo ayude personalmente."}]
+5. RESPUESTA ANTE EL CONFLICTO: Si el cliente se muestra agresivo, mantén la calma y ofrece agendar la cita para que el profesional lo ayude personalmente."""}]
 
 for message in st.session_state.messages:
     if message["role"] != "system":
@@ -37,6 +37,7 @@ if prompt := st.chat_input("¿En qué podemos ayudarle?"):
         st.markdown(full_response)
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
 
 
 
