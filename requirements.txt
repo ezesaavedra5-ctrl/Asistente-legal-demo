@@ -1,4 +1,4 @@
 streamlit
 groq
-gspread
-google-auth
+fpdf2
+
