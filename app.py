@@ -1,7 +1,7 @@
 import streamlit as st
 from groq import Groq
 
-# 1. Definimos la Agenda del Estudio (Editable manualmente)
+# 1. Agenda del Estudio (Editable manualmente por ahora)
 turnos_ocupados = ["Lunes 16:00", "Lunes 17:00", "Miércoles 18:30"]
 
 st.set_page_config(page_title="Asistente Legal Saavedra", page_icon="⚖️")
@@ -15,21 +15,23 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "system", 
-            "content": f"""Eres el Asistente Virtual de Élite del Estudio Saavedra. 
+            "content": f"""Eres el Asistente Virtual de Élite del Estudio Saavedra en Santa Fe. 
             UBICACIÓN: San Martín 1234, Santa Fe.
-            HORARIOS: Lunes a Viernes de 16:00 a 20:00 hs.
-            ESTADO DE AGENDA: Los siguientes turnos ya están OCUPADOS: {', '.join(turnos_ocupados)}.
+            HORARIOS DE ATENCIÓN: Lunes a Viernes de 16:00 a 20:00 hs.
             
-            REGLAS:
-            1. Si el cliente pregunta horarios libres, revisa tu agenda y ofrece los que NO están ocupados (de 16 a 20 hs).
-            2. Pide siempre: Nombre, Teléfono y Motivo de consulta.
-            3. No des consejos legales ni montos de dinero.
-            4. Sé breve, formal y usa gramática impecable (español rioplatense).
-            5. Cuando el cliente dé sus datos y el horario sea acordado, confirma la cita claramente."""
+            ESTADO DE AGENDA: Los siguientes turnos ya están RESERVADOS: {', '.join(turnos_ocupados)}.
+            
+            REGLAS ESTRICTAS:
+            1. Antes de ofrecer un horario, verifica que NO esté en la lista de RESERVADOS.
+            2. Si el cliente pide un horario ocupado (como Lunes 16:00 o 17:00), di que no es posible y ofrece los libres (18:00, 19:00 o 20:00).
+            3. Pide siempre: Nombre completo, Teléfono y Motivo de consulta.
+            4. No confirmes la cita sin tener esos 3 datos.
+            5. Cuando confirmes, usa la frase "SU CITA HA SIDO AGENDADA" para que el sistema la registre.
+            6. Sé breve, muy formal y usa español rioplatense impecable."""
         }
     ]
 
-# Mostrar el historial de chat
+# Mostrar el historial de chat (excluyendo el sistema)
 for message in st.session_state.messages:
     if message["role"] != "system":
         with st.chat_message(message["role"]):
@@ -51,33 +53,32 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
     
     st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-    # --- LÓGICA DEL RESUMEN VISUAL MEJORADA ---
-    # Ampliamos las pistas para que no se le escape ninguna confirmación
-    pistas_confirmacion = ["agendado", "agendada", "confirmado", "confirmada", "registrado", "cita pactada", "esperándolo"]
+    # --- LÓGICA DEL RESUMEN VISUAL PROFESIONAL (Sin Globos y sin NameError) ---
+    pistas_confirmacion = ["agendada", "confirmada", "registrada", "cita pactada", "agendado"]
     
     if any(pista in full_response.lower() for pista in pistas_confirmacion):
         st.divider()
-        st.success("### ✅ FICHA DE TURNO GENERADA")
+        st.subheader("📋 Ficha de Registro de Consulta")
         
-        # Buscamos el nombre de una manera más robusta
-        nombre_detectado = "Ezequiel Saavedra" # Valor por defecto para tu prueba
+        # Extracción segura de datos del historial
+        nombre_final = "No especificado"
         for m in reversed(st.session_state.messages):
             if m["role"] == "user":
-                # Si el usuario mencionó su nombre en algún momento
-                if "nombre es" in m["content"].lower():
-                    nombre_detectado = m["content"].lower().split("nombre es")[-1].strip().title()
+                content = m["content"].lower()
+                if "nombre es" in content:
+                    nombre_final = content.split("nombre es")[-1].strip().title()
                     break
-        
+                elif "soy " in content:
+                    nombre_final = content.split("soy")[-1].strip().title()
+                    break
+
+        # Diseño serio y profesional
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Cliente", nombre_detectado)
-            st.metric("Fecha", "Lunes 18:00 hs")
+            st.write(f"**👤 Cliente:** {nombre_final}")
+            st.write("**📍 Lugar:** San Martín 1234, Santa Fe")
         with col2:
-            st.metric("Asunto", "Accidente Laboral")
-            st.metric("Estado", "Confirmado")
+            st.write("**✅ Estado:** Confirmado")
+            st.write("**📞 Contacto:** Ver historial de chat")
         
-        st.balloons() # ¡Un toque de festejo para cuando cierres la cita!
-        
-        st.info(f"**Paciente/Cliente:** {nombre_usuario}  \n**Estado:** Pendiente de ingreso a agenda global.")
-        st.warning("⚠️ Nota para el abogado: Esta información se enviará automáticamente a su planilla de gestión.")
-
+        st.info("ℹ️ Esta ficha ha sido generada automáticamente para la gestión interna del estudio.")
