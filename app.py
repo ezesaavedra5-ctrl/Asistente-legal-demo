@@ -77,22 +77,28 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
                 motivo_final = "Consulta General"
                 fecha_final = "A confirmar"
                 
-                # 1. Analizar historial para extraer datos
+                # 1. Analizar historial para extraer datos (VERSIÓN MEJORADA)
                 texto_completo = ""
-                for m in st.session_state.messages:
+                for m in reversed(st.session_state.messages): # Empezamos del último al primero
                     if m["role"] == "user":
                         content = m["content"].lower()
-                        texto_completo += " " + content
+                        texto_completo = content + " " + texto_completo
                         
-                        # Extraer Nombre
-                        if "mi nombre es" in content:
-                            nombre_final = m["content"].lower().split("nombre es")[-1].strip().split('.')[0].title()
+                        # Extraer Nombre con "poda" de conectores
+                        if "nombre es" in content:
+                            bruto = m["content"].lower().split("nombre es")[-1].strip()
+                            # Cortamos si aparecen conectores comunes
+                            nombre_limpio = re.split(r' y | mi | mi | de |,|\.', bruto)[0].strip()
+                            nombre_final = nombre_limpio.title()
                         elif "soy " in content:
-                            nombre_final = m["content"].lower().split("soy")[-1].strip().split('.')[0].title()
+                            bruto = m["content"].lower().split("soy")[-1].strip()
+                            nombre_limpio = re.split(r' y | mi | mi | de |,|\.', bruto)[0].strip()
+                            nombre_final = nombre_limpio.title()
                         
-                        # Extraer Teléfono (secuencia de números)
-                        nums = re.findall(r'\d{8,14}', content)
-                        if nums: tel_final = nums[0]
+                        # Extraer Teléfono (ahora más agresivo)
+                        nums = re.findall(r'\d{7,15}', content.replace(" ", ""))
+                        if nums: 
+                            tel_final = nums[0]
 
                 # 2. Detección Inteligente de Motivo
                 temas = {
@@ -143,4 +149,5 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
             st.error("⚠️ El sistema está experimentando una demora.")
             if len(st.session_state.messages) > 0:
                 st.session_state.messages.pop()
+
 
