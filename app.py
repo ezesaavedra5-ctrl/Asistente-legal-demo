@@ -36,57 +36,64 @@ for message in st.session_state.messages:
 
 if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"): 
+        st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=st.session_state.messages
-        )
-        full_response = response.choices[0].message.content
-        st.markdown(full_response)
-    
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+        try:
+            # --- BLOQUE PROTEGIDO ---
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=st.session_state.messages
+            )
+            full_response = response.choices[0].message.content
+            st.markdown(full_response)
+            
+            # Solo guardamos en el historial si la respuesta fue exitosa
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-    # --- LÓGICA DE FICHA PROFESIONAL REFINADA ---
-    # Ahora usamos una frase larga para que no aparezca antes de tiempo
-    if "turno confirmado exitosamente" in full_response.lower():
-        st.divider()
-        
-        nombre_final = "Cliente"
-        fecha_final = "A confirmar"
-        
-        # 1. Extracción de nombre (reforzada)
-        for m in reversed(st.session_state.messages):
-            if m["role"] == "user":
-                content = m["content"].lower()
-                if "mi nombre es" in content:
-                    nombre_final = m["content"].lower().split("nombre es")[-1].strip().split('.')[0].split(',')[0].split(' y ')[0].title()
-                    break
-                elif "soy " in content:
-                    nombre_final = m["content"].lower().split("soy")[-1].strip().split('.')[0].split(',')[0].title()
-                    break
+            # --- LÓGICA DE FICHA PROFESIONAL ---
+            if "turno confirmado exitosamente" in full_response.lower():
+                st.divider()
+                
+                nombre_final = "Cliente"
+                fecha_final = "A confirmar"
+                
+                for m in reversed(st.session_state.messages):
+                    if m["role"] == "user":
+                        content = m["content"].lower()
+                        if "mi nombre es" in content:
+                            nombre_final = m["content"].lower().split("nombre es")[-1].strip().split('.')[0].split(',')[0].split(' y ')[0].title()
+                            break
+                        elif "soy " in content:
+                            nombre_final = m["content"].lower().split("soy")[-1].strip().split('.')[0].split(',')[0].title()
+                            break
 
-        # 2. Extracción de Fecha y Hora del mensaje de la IA
-        dias = ["lunes", "martes", "miércoles", "miercoles", "jueves", "viernes"]
-        for dia in dias:
-            if dia in full_response.lower():
-                fecha_final = dia.capitalize()
-                break
-        
-        hora_match = re.search(r'(\d{1,2}:\d{2})', full_response)
-        if hora_match:
-            fecha_final += f" a las {hora_match.group(1)} hs"
+                dias = ["lunes", "martes", "miércoles", "miercoles", "jueves", "viernes"]
+                for dia in dias:
+                    if dia in full_response.lower():
+                        fecha_final = dia.capitalize()
+                        break
+                
+                hora_match = re.search(r'(\d{1,2}:\d{2})', full_response)
+                if hora_match:
+                    fecha_final += f" a las {hora_match.group(1)} hs"
 
-        # 3. Interfaz Visual
-        st.success("### ✅ Turno Registrado en Agenda")
-        with st.container(border=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**👤 Cliente:** \n{nombre_final}")
-                st.write(f"**📅 Cita:** \n{fecha_final}")
-            with col2:
-                st.write("**📍 Ubicación:** \nSan Martín 1234, Santa Fe")
-                st.write("**⚖️ Estado:** \nConfirmado")
-        
-        st.caption("ℹ️ Este es un registro digital del Estudio Jurídico Saavedra.")
+                st.success("### ✅ Turno Registrado en Agenda")
+                with st.container(border=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**👤 Cliente:** \n{nombre_final}")
+                        st.write(f"**📅 Cita:** \n{fecha_final}")
+                    with col2:
+                        st.write("**📍 Ubicación:** \nSan Martín 1234, Santa Fe")
+                        st.write("**⚖️ Estado:** \nConfirmado")
+                
+                st.caption("ℹ️ Este es un registro digital del Estudio Jurídico Saavedra.")
+
+        except Exception as e:
+            # --- MANEJO DE ERRORES PROFESIONAL ---
+            st.error("⚠️ El Asistente está experimentando una interrupción temporal.")
+            st.info("Por favor, refresque la página o intente nuevamente en unos segundos.")
+            # Eliminamos el último mensaje del usuario para que no se duplique al reintentar
+            st.session_state.messages.pop()
