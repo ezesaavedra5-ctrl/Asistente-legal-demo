@@ -4,45 +4,66 @@ import re
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- FUNCIÓN PARA GUARDAR EN GOOGLE SHEETS ---
-def guardar_en_excel(fecha, nombre, telefono, motivo):
+# --- 1. FUNCIONES DE GOOGLE SHEETS ---
+
+def obtener_turnos_actualizados():
+    """Lee el Excel y devuelve una lista de los turnos ya ocupados."""
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds_dict = st.secrets["gcp_service_account"]
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client_gs = gspread.authorize(creds)
         
-        # Abrimos el archivo
         sheet = client_gs.open("Agenda de turnos").sheet1
+        # Traemos la columna 1 (Fecha/Hora)
+        columna_fechas = sheet.col_values(1) 
+        # Devolvemos todo menos el encabezado
+        return columna_fechas[1:] if len(columna_fechas) > 1 else []
+    except Exception as e:
+        # Si falla la lectura, devolvemos lista vacía para no trabar la app
+        st.sidebar.warning(f"Aviso: Agenda en modo local (no se pudo leer Excel)")
+        return []
+
+def guardar_en_excel(fecha, nombre, telefono, motivo):
+    """Guarda una nueva fila en el Excel del estudio."""
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client_gs = gspread.authorize(creds)
         
-        # Guardamos en el orden de tus columnas: Fecha, Nombre, Teléfono, Motivo
+        sheet = client_gs.open("Agenda de turnos").sheet1
         sheet.append_row([fecha, nombre, telefono, motivo])
         return True
     except Exception as e:
-        st.sidebar.error(f"Error de sincronización: {e}")
+        st.error(f"Error al guardar: {e}")
         return False
 
-# 1. Configuración de la Agenda
-turnos_ocupados = ["Lunes 16:00", "Lunes 17:00", "Miércoles 18:30"]
+# --- 2. CONFIGURACIÓN DE LA APP Y IA ---
 
 st.set_page_config(page_title="Asistente Legal Saavedra", page_icon="⚖️")
 st.title("Asistente Legal Saavedra ⚖️")
 
-# Cliente Groq
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+# Leemos los turnos reales del Excel al iniciar
+turnos_reservados = obtener_turnos_actualizados()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "system", 
-            "content": f"""Eres el Asistente Virtual del Estudio Saavedra en Santa Fe.
+            "content": f"""Eres el Asistente Virtual del Estudio Saavedra. 
+            UBICACIÓN: San Martín 1234, Vera, Santa Fe.
             HORARIOS: Lunes a Viernes de 16 a 20 hs.
-            TURNOS OCUPADOS: {', '.join(turnos_ocupados)}.
+            TURNOS YA RESERVADOS EN EXCEL: {', '.join(turnos_reservados)}.
             
-            REGLAS:
-            1. Pide Nombre, Teléfono y Motivo de consulta.
-            2. Solo cuando tengas todos los datos, confirma con la frase: "TURNO CONFIRMADO EXITOSAMENTE".
-            3. Sé formal y utiliza español rioplatense."""
+            REGLAS DE ORO:
+            1. No leas la lista de turnos reservados al inicio.
+            2. Actúa con naturalidad: si el cliente pregunta por un día, verifica internamente si ese día hay algo ocupado en tu lista de RESERVADOS.
+            3. Si el horario que pide está ocupado, ofrece alternativas para ESE MISMO DÍA dentro de la franja 16-20 hs.
+            4. Debes obtener: Nombre, Teléfono y Motivo de consulta.
+            5. SOLO cuando todo esté acordado, confirma con: "TURNO CONFIRMADO EXITOSAMENTE"."""
         }
     ]
 
@@ -52,7 +73,8 @@ for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-# Lógica del Chat
+# --- 3. LÓGICA DEL CHAT ---
+
 if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -68,7 +90,7 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
             st.markdown(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-            # --- DETECCIÓN DE TURNO CONFIRMADO ---
+            # --- DETECCIÓN DE TURNO CONFIRMADO Y EXTRACCIÓN ---
             if "turno confirmado exitosamente" in full_response.lower():
                 st.divider()
                 
@@ -77,30 +99,23 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
                 motivo_final = "Consulta General"
                 fecha_final = "A confirmar"
                 
-                # 1. Analizar historial para extraer datos (VERSIÓN MEJORADA)
+                # Análisis de historial para extraer datos
                 texto_completo = ""
-                for m in reversed(st.session_state.messages): # Empezamos del último al primero
+                for m in reversed(st.session_state.messages):
                     if m["role"] == "user":
                         content = m["content"].lower()
                         texto_completo = content + " " + texto_completo
                         
-                        # Extraer Nombre con "poda" de conectores
-                        if "nombre es" in content:
-                            bruto = m["content"].lower().split("nombre es")[-1].strip()
-                            # Cortamos si aparecen conectores comunes
-                            nombre_limpio = re.split(r' y | mi | mi | de |,|\.', bruto)[0].strip()
-                            nombre_final = nombre_limpio.title()
-                        elif "soy " in content:
-                            bruto = m["content"].lower().split("soy")[-1].strip()
-                            nombre_limpio = re.split(r' y | mi | mi | de |,|\.', bruto)[0].strip()
-                            nombre_final = nombre_limpio.title()
+                        # Extraer Nombre (Refinado)
+                        if "nombre es" in content or "soy " in content:
+                            bruto = content.split("nombre es")[-1] if "nombre es" in content else content.split("soy")[-1]
+                            nombre_final = re.split(r' y | mi | con | de |,|.', bruto.strip())[0].strip().title()
                         
-                        # Extraer Teléfono (ahora más agresivo)
+                        # Extraer Teléfono
                         nums = re.findall(r'\d{7,15}', content.replace(" ", ""))
-                        if nums: 
-                            tel_final = nums[0]
+                        if nums: tel_final = nums[0]
 
-                # 2. Detección Inteligente de Motivo
+                # Detección de Motivo
                 temas = {
                     "Divorcio": ["divorcio", "separacion", "conyuge", "casamiento"],
                     "Sucesión": ["sucesion", "herencia", "fallecio", "bienes"],
@@ -112,28 +127,26 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
                         motivo_final = tema
                         break
 
-                # 3. Extracción y Normalización de Fecha/Hora
+                # Extracción y Normalización de Fecha/Hora
                 dias = ["lunes", "martes", "miércoles", "miercoles", "jueves", "viernes"]
                 for dia in dias:
                     if dia in full_response.lower():
                         fecha_final = dia.capitalize()
                         break
                 
-                # Buscar hora (formato 19:00 o solo 19)
-                hora_completa = re.search(r'(\d{1,2}):(\d{2})', full_response)
+                hora_match = re.search(r'(\d{1,2}):(\d{2})', full_response)
                 hora_simple = re.search(r'las (\d{1,2})', full_response.lower())
                 
-                if hora_completa:
-                    fecha_final += f" a las {hora_completa.group(1)}:{hora_completa.group(2)} hs"
+                if hora_match:
+                    fecha_final += f" a las {hora_match.group(1)}:{hora_match.group(2)} hs"
                 elif hora_simple:
-                    # Normalización: si dice "19", ponemos "19:00"
                     fecha_final += f" a las {hora_simple.group(1)}:00 hs"
 
-                # 4. GUARDADO EN EXCEL (Orden: Fecha, Nombre, Teléfono, Motivo)
+                # GUARDADO EN EXCEL
                 if guardar_en_excel(fecha_final, nombre_final, tel_final, motivo_final):
-                    st.toast("✅ Sincronizado con el estudio")
+                    st.toast("✅ Cita sincronizada")
 
-                # 5. Interfaz Visual
+                # Ficha Visual
                 st.success("### ✅ Turno Registrado en Agenda")
                 with st.container(border=True):
                     col1, col2 = st.columns(2)
