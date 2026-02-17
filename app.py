@@ -94,28 +94,37 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
             if "turno confirmado exitosamente" in full_response.lower():
                 st.divider()
                 
+                # Inicializamos las variables en español tal como las tenías
                 nombre_final = "No identificado"
                 tel_final = "No proporcionado"
                 motivo_final = "Consulta General"
                 fecha_final = "A confirmar"
                 
-                # Análisis de historial para extraer datos
+                # 1. Análisis de historial para extraer datos (Primero extraemos todo)
                 texto_completo = ""
                 for m in reversed(st.session_state.messages):
                     if m["role"] == "user":
-                        content = m["content"].lower()
-                        texto_completo = content + " " + texto_completo
+                        content = m["content"]
+                        texto_completo = content.lower() + " " + texto_completo
                         
                         # Extraer Nombre (Refinado)
-                        if "nombre es" in content or "soy " in content:
-                            bruto = content.split("nombre es")[-1] if "nombre es" in content else content.split("soy")[-1]
-                            nombre_final = re.split(r' y | mi | con | de |,|.', bruto.strip())[0].strip().title()
+                        content_low = content.lower()
+                        if "nombre es" in content_low or "soy " in content_low:
+                            if "nombre es" in content_low:
+                                bruto = content.split("nombre es")[-1]
+                            else:
+                                bruto = content.split("soy")[-1]
+                            
+                            # Limpiamos el nombre cortando en conectores comunes
+                            nombre_limpio = re.split(r' y | mi | con | de |,|\.|\n', bruto.strip(), flags=re.IGNORECASE)[0].strip()
+                            nombre_final = nombre_limpio.title()
                         
                         # Extraer Teléfono
                         nums = re.findall(r'\d{7,15}', content.replace(" ", ""))
-                        if nums: tel_final = nums[0]
+                        if nums and tel_final == "No proporcionado": 
+                            tel_final = nums[0]
 
-                # Detección de Motivo
+                # 2. Detección de Motivo
                 temas = {
                     "Divorcio": ["divorcio", "separacion", "conyuge", "casamiento"],
                     "Sucesión": ["sucesion", "herencia", "fallecio", "bienes"],
@@ -127,7 +136,7 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
                         motivo_final = tema
                         break
 
-                # Extracción y Normalización de Fecha/Hora
+                # 3. Extracción de Fecha y Hora de la respuesta de la IA
                 dias = ["lunes", "martes", "miércoles", "miercoles", "jueves", "viernes"]
                 for dia in dias:
                     if dia in full_response.lower():
@@ -142,11 +151,11 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
                 elif hora_simple:
                     fecha_final += f" a las {hora_simple.group(1)}:00 hs"
 
-                # GUARDADO EN EXCEL
+                # 4. GUARDADO EN EXCEL (Ahora con los datos ya procesados)
                 if guardar_en_excel(fecha_final, nombre_final, tel_final, motivo_final):
-                    st.toast("✅ Cita sincronizada")
+                    st.toast(f"✅ Agenda sincronizada: {nombre_final}")
 
-                # Ficha Visual
+                # 5. Ficha Visual
                 st.success("### ✅ Turno Registrado en Agenda")
                 with st.container(border=True):
                     col1, col2 = st.columns(2)
@@ -162,5 +171,3 @@ if prompt := st.chat_input("¿En qué puedo ayudarlo?"):
             st.error("⚠️ El sistema está experimentando una demora.")
             if len(st.session_state.messages) > 0:
                 st.session_state.messages.pop()
-
-
